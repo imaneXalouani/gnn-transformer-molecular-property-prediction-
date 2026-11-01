@@ -1,212 +1,112 @@
 # Molecular Property Prediction with Explainable AI
 
-> **Full-stack application comparing GNNs and Transformer-based molecular representations with Explainable AI for Drug Discovery.**
+A full-stack research application for comparing **graph neural networks and a molecular Transformer** on MoleculeNet tasks. A FastAPI backend handles datasets, training, inference and explanations; a React/TypeScript interface makes the workflow interactive.
 
----
+## At a glance
 
-## What to Change (Configuration)
+| Area | Implementation |
+| --- | --- |
+| Graph models | GCN and GAT with PyTorch Geometric |
+| Molecular text model | ChemBERTa using SMILES tokenization |
+| Configured tasks | ESOL, FreeSolv, BBBP and ClinTox |
+| Explanations | Attention visualization and Integrated Gradients |
+| Backend | Python, FastAPI, RDKit, PyTorch, DeepChem |
+| Frontend | React, TypeScript, Vite, Tailwind CSS |
 
-### 1. Backend Configuration (`backend/app/config.py`)
+The currently configured Transformer checkpoint is `seyonec/ChemBERTa-zinc-base-v1`; see [config.py](backend/app/config.py). Model identifiers and dataset choices should accompany any reported experiment.
 
-| Variable | Default | Change to |
-|----------|---------|-----------|
-| `DATA_DIR` | `"./data"` | Path where datasets are cached |
-| `MODEL_DIR` | `"./models"` | Path where trained models are saved |
-| `DEVICE` | `"cuda"` (auto) | `"cpu"` if no GPU available |
-| `BATCH_SIZE` | `32` | Reduce to `16` or `8` if GPU OOM |
-| `EPOCHS` | `50` | Reduce to `25` for faster training |
-| `WANDB_API_KEY` | `""` | Your Weights & Biases API key (optional) |
+## Architecture
 
-### 2. Frontend Configuration (`frontend/src/services/api.ts`)
+```mermaid
+flowchart LR
+    UI[React research interface] --> API[FastAPI]
+    API --> D[MoleculeNet loading and preprocessing]
+    D --> G[Graph inputs: GCN and GAT]
+    D --> T[SMILES tokens: ChemBERTa]
+    G --> E[Training and evaluation]
+    T --> E
+    E --> C[Saved checkpoints and results]
+    C --> P[Prediction and explanations]
+    P --> UI
+```
 
-| Variable | Default | Change to |
-|----------|---------|-----------|
-| `API_BASE` | `"http://localhost:8000"` | Backend URL if different port |
+Start with [models](backend/app/models), [dataset loading](backend/app/data/loader.py), [training](backend/app/training) and [explainability](backend/app/explainability).
 
-### 3. Startup Script (`run.sh`)
+## Run locally
 
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `PYTHON` | auto-detect | Use `python` or `python3` |
-| `MOLECULAR_DEVICE` | `"auto"` | `"cuda"`, `"cpu"`, or `"auto"` |
-
----
-
-## Step-by-Step Setup and Run
-
-### Prerequisites
-
-- Python 3.9+ installed
-- Node.js 18+ installed
-- Git installed
-- CUDA-capable GPU recommended (CPU works, slower)
-- 8GB+ RAM recommended
-
-### Step 1: Clone & Setup Backend
+Use Python **3.10+** (the source uses modern type annotations) and a Node.js version compatible with Vite 7; Node **22.12+** is a suitable baseline. A GPU is optional; CPU training is slower.
 
 ```bash
-cd molecular-ai-project/backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+git clone https://github.com/shirahex/gnn-transformer-molecular-property-prediction-.git
+cd gnn-transformer-molecular-property-prediction-
+cd backend
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**Note for PyTorch Geometric**: If `pip install` fails:
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-pip install torch-geometric torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.0.0+cu118.html
-```
-(Adjust CUDA version based on your GPU. Run `nvidia-smi` to check.)
+PyTorch/PyG compiled dependencies must match the local Python, PyTorch and CUDA versions. See the [PyTorch installation selector](https://pytorch.org/get-started/locally/) and [PyG installation guide](https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html) if wheel installation fails.
 
-### Step 2: Setup Frontend
-
-```bash
-cd ../frontend
-npm install
-```
-
-### Step 3: Start Backend
+In a second terminal, from the repository root:
 
 ```bash
-cd ../backend
-source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+cd frontend
+npm ci
+npm run dev
 ```
 
-Backend will be at: http://localhost:8000
-API docs at: http://localhost:8000/docs
+Frontend: http://localhost:3000 · API: http://localhost:8000 · Swagger: http://localhost:8000/docs
 
-### Step 4: Start Frontend (new terminal)
+Use `npm run dev`, not `npm start`: this frontend is a Vite application. The API client/proxy and CORS configuration assume the ports above.
 
-```bash
-cd molecular-ai-project/frontend
-npm start
-```
+## First experiment
 
-Frontend will be at: http://localhost:3000
+1. Start the backend and open the API docs.
+2. Load a configured dataset through the dataset API.
+3. Start a training job through the training page or `POST /train/{model}/{dataset}`.
+4. Inspect progress, saved results and model checkpoints.
+5. Run prediction or explanations using that trained model and dataset.
 
-### Alternative: One-Command Start
+Dataset downloads and pretrained weights require internet access on first use. No pretrained experiment checkpoints are included in this repository.
 
-```bash
-chmod +x run.sh
-./run.sh
-```
+## API map
 
-(This starts both backend and frontend in parallel.)
+| Route | Purpose |
+| --- | --- |
+| `GET /health` | Service/device status |
+| `GET /datasets` | Supported datasets |
+| `POST /train/{model}/{dataset}` | Start training |
+| `GET /train/status/{job_id}` | Training progress |
+| `GET /results` | Saved experiment comparisons |
+| `POST /predict` | Single SMILES prediction |
+| `POST /predict/batch` | Batch prediction |
+| `GET /explain/{smiles}` | Explanation data |
 
----
+Consult Swagger for the current request schemas and remaining routes.
 
-## Data Acquisition (No Manual Download Needed)
+## Results and interpretation
 
-**Primary method (automatic):**
-```python
-from deepchem.molnet import load_esol, load_bbbp, load_freesolv, load_clintox
-# These download automatically on first run
-```
+The committed [results file](outputs/results.json) currently contains an empty result list. It does not establish a reproducible benchmark. To report a comparison, save the dataset split, seed, preprocessing, checkpoint identifier, hyperparameters and held-out metrics together.
 
-**If DeepChem fails or you are offline:**
+The inference code contains a fallback that returns zero-valued placeholders if a checkpoint is absent. **Those values are not model predictions.** Train a model and verify that its checkpoint loads before interpreting any output. Attention and attribution visualizations describe model behavior; they are not proof of chemical causation or clinical validity.
 
-| Dataset | URL |
-|---------|-----|
-| ESOL | https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/delaney-processed.csv |
-| BBBP | https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv |
-| FreeSolv | https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/SAMPL.csv |
-| ClinTox | https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/clintox.csv |
+This is an academic prototype, not a validated drug-discovery or medical decision system.
 
-Place downloaded CSVs in `data/raw/` and the loader will use them.
+## Configuration and repository map
 
----
+Use `MOLECULAR_DEVICE`, `MOLECULAR_DATA_DIR`, `MOLECULAR_MODEL_DIR`, `MOLECULAR_OUTPUT_DIR` and `MOLECULAR_LR` for the environment settings implemented in [config.py](backend/app/config.py). Model-specific learning rates are defined separately in that file.
 
-## API Endpoints
+- `backend/app/`: API, models, data, training and explanations.
+- `frontend/src/`: interactive research pages and API client.
+- `data/` and `models/`: generated locally.
+- `outputs/`: saved results.
+- `run.sh`, `run.ps1`: convenience scripts; explicit commands above make the startup steps visible.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check with device info |
-| GET | `/datasets` | List all datasets with stats |
-| GET | `/datasets/{name}` | Specific dataset info |
-| POST | `/predict` | Predict property from SMILES |
-| POST | `/predict/batch` | Batch prediction |
-| POST | `/train/{model}/{dataset}` | Start training job |
-| GET | `/train/status/{job_id}` | Get training progress |
-| GET | `/train/jobs` | List all training jobs |
-| GET | `/results` | Full benchmark comparison |
-| GET | `/results/{dataset}` | Dataset-specific results |
-| GET | `/explain/{smiles}` | Attention/importance data |
-| GET | `/explain/{smiles}/render` | 2D molecule PNG |
-| GET | `/explain/{smiles}/heatmap` | Attention heatmap PNG |
-
----
-
-## Sample SMILES Strings for Testing
-
-| Molecule | SMILES | Expected (ESOL) |
-|----------|--------|----------------|
-| Ethanol | `CCO` | ~ -1.31 logS |
-| Aspirin | `CC(=O)OC1=CC=CC=C1C(=O)O` | ~ -2.05 logS |
-| Caffeine | `CN1C=NC2=C1C(=O)N(C(=O)N2C)C` | ~ -1.07 logS |
-| Ibuprofen | `CC(C)Cc1ccc(cc1)C(C)C(=O)O` | ~ -3.13 logS |
-| Paracetamol | `CC(=O)Nc1ccc(O)cc1` | ~ -1.46 logS |
-| Glucose | `C(C1C(C(C(C(O1)O)O)O)O)O` | ~ -1.00 logS |
-
----
-
-## Performance Expectations
-
-| Model | Dataset | GPU Time | CPU Time | Memory |
-|-------|---------|----------|----------|--------|
-| GCN | ESOL | ~2 min | ~10 min | ~2 GB |
-| GAT | ESOL | ~3 min | ~15 min | ~3 GB |
-| ChemBERTa | ESOL | ~5 min | ~30 min | ~4 GB |
-
-*Times are approximate for 50 epochs on a modern GPU (RTX 3060) or CPU (Intel i7).*
-
----
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| **RDKit install fails (Windows)** | Use conda: `conda install -c conda-forge rdkit` |
-| **CUDA out of memory** | Reduce `BATCH_SIZE` in `config.py` or use `DEVICE = "cpu"` |
-| **ChemBERTa download slow** | ~150MB from HuggingFace. First run requires internet. |
-| **DeepChem download fails** | Use manual CSV download links above |
-| **Port 8000 in use** | Change port in `config.py` and `api.ts` |
-| **Frontend won't start** | Ensure Node.js >= 18. Run `npm install` again. |
-| **ModuleNotFoundError** | Ensure virtual environment is activated |
-| **CORS errors** | Check `CORS_ORIGINS` in `config.py` matches frontend URL |
-
----
-
-## Project Structure
-
-```
-molecular-ai-project/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI entry point
-│   │   ├── config.py            # Paths, hyperparameters, device
-│   │   ├── models/              # GCN, GAT, ChemBERTa-2
-│   │   ├── data/                # DeepChem loader, preprocessing
-│   │   ├── training/            # Trainer, evaluator
-│   │   ├── explainability/      # Attention viz, integrated gradients
-│   │   ├── api/                 # REST endpoints
-│   │   └── utils/               # Metrics, helpers
-│   ├── requirements.txt
-│   └── README.md
-├── frontend/
-│   ├── src/
-│   │   ├── components/          # UI components
-│   │   ├── pages/               # Dashboard, Predictor, etc.
-│   │   ├── services/            # API client
-│   │   └── types/               # TypeScript interfaces
-│   └── package.json
-├── data/                        # Auto-created (cached graphs)
-├── models/                      # Saved model checkpoints
-├── outputs/                     # Training logs, visualizations
-├── run.sh                       # One-command startup
-└── README.md                    # This file
-```
+Existing Windows notes remain available in [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETUP_GUIDE.md); the current commands above take precedence if older notes differ.
 
 ## License
 
-MIT License - Created for academic research and competition purposes.
+No standalone software license file is currently included in the repository.
