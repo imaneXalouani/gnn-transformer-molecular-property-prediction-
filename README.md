@@ -110,3 +110,8 @@ Existing Windows notes remain available in [WINDOWS_SETUP_GUIDE.md](WINDOWS_SETU
 ## License
 
 No standalone software license file is currently included in the repository.
+
+
+---
+
+Original repository: [shirahex/gnn-transformer-molecular-property-prediction-](https://github.com/shirahex/gnn-transformer-molecular-property-prediction-). Academic team project by Marouane Daouki and Imane Alouani.
